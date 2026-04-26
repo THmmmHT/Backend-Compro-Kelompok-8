@@ -1,11 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, Security
-from fastapi.security.api_key import APIKeyHeader
+from fastapi import APIRouter, Depends, HTTPException, Header
 from pydantic import BaseModel
-from typing import List, Any
+from typing import List, Any, Optional
 from app.schemas.common import ResponseModel
 from app.ai.chat import ai_chat_service
 from app.core.config import settings
 from app.services.car_service import car_service
+from app.core.dependencies import get_current_user
+from app.models.user import User
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 
@@ -17,18 +18,18 @@ class ChatData(BaseModel):
     reply: str
     car_recommendations: List[Any]
     action: Any = None
+    user_role: Optional[str] = None
 
 @router.post("/chat", response_model=ResponseModel[ChatData])
-async def chat(request: ChatRequest):
-    result = await ai_chat_service.get_response(request.message)
+async def chat(request: ChatRequest, current_user: User = Depends(get_current_user)):
+    result = await ai_chat_service.get_response(request.message, current_user, request.session_id)
+    result["user_role"] = current_user.role
     return ResponseModel(data=result, message="Chat processed")
 
-api_key_header = APIKeyHeader(name="Authorization", auto_error=False)
-
-async def verify_internal_token(api_key_header: str = Security(api_key_header)):
-    if api_key_header == f"Bearer {settings.INTERNAL_SERVICE_TOKEN}":
-        return True
-    raise HTTPException(status_code=403, detail="Invalid internal token")
+async def verify_internal_token(x_internal_token: str = Header(...)):
+    if x_internal_token != settings.INTERNAL_SERVICE_TOKEN:
+        raise HTTPException(status_code=403, detail="Invalid internal token")
+    return True
 
 @router.get("/inventory-search", response_model=ResponseModel[List[Any]])
 async def internal_inventory_search(

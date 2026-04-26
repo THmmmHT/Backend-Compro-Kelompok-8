@@ -42,6 +42,6 @@ class AuthService:
         access_token = create_access_token(data={"sub": user.username})
         refresh_token = create_refresh_token(data={"sub": user.username})
         
-        return TokenResponse(access_token=access_token, refresh_token=refresh_token)
+        return TokenResponse(access_token=access_token, refresh_token=refresh_token, role=user.role)
 
 auth_service = AuthService()

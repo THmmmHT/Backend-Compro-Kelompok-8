@@ -1,7 +1,9 @@
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+import os
 
 from app.core.config import settings
 from app.core.database import init_db, close_db
@@ -54,3 +56,8 @@ async def health_check():
 @app.get("/api/v1/version", tags=["system"])
 async def get_version():
     return {"version": "1.0.0"}
+
+@app.get("/chat", include_in_schema=False)
+async def chat_ui():
+    static_dir = os.path.join(os.path.dirname(__file__), "static")
+    return FileResponse(os.path.join(static_dir, "chat.html"))
