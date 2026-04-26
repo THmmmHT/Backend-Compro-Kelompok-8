@@ -7,78 +7,90 @@ MODEL_NAME = "llama3.2:1b"
 
 class AIChatService:
     async def get_response(self, message: str) -> dict:
-        # Step 1: Extract intent and parameters via LLM
-        prompt = f"""
-        You are an AI assistant for a car showroom. Extract the user's intent to find cars.
-        User message: "{message}"
+        # Step 1: Extract budget using a very simple prompt
+        budget_prompt = f"""
+        Tugas: Ekstrak batas harga maksimal (budget) dari kalimat berikut.
+        Kalimat: "{message}"
         
-        Return ONLY a JSON object with:
-        - "brand": string or null
-        - "max_price": integer or null
-        - "intent": string (e.g. "search_car", "general_chat")
+        Aturan:
+        - Jika ada kata "juta", kalikan dengan 1000000. (contoh: 200 juta = 200000000)
+        - Hanya kembalikan ANGKA tanpa titik, koma, atau teks apapun.
+        - Jika tidak ada budget, kembalikan angka 0.
         
-        Example: {{"brand": "toyota", "max_price": 300000000, "intent": "search_car"}}
+        Output:
         """
         
         try:
             async with httpx.AsyncClient() as client:
                 res = await client.post(OLLAMA_URL, json={
                     "model": MODEL_NAME,
-                    "prompt": prompt,
-                    "stream": False,
-                    "format": "json"
-                }, timeout=30.0)
-                res_data = res.json()
-                response_text = res_data.get("response", "{}")
-                parsed = json.loads(response_text)
+                    "prompt": budget_prompt,
+                    "stream": False
+                }, timeout=15.0)
+                
+                budget_str = res.json().get("response", "0").strip()
+                import re
+                numbers = re.findall(r'\d+', budget_str)
+                max_price = int("".join(numbers)) if numbers else 0
         except Exception:
-            # Fallback
-            parsed = {"brand": None, "max_price": None, "intent": "general_chat"}
+            max_price = 0
+            
+        # Jika max_price = 0, kita ambil semua mobil, jika tidak filter sesuai budget.
+        # Kita tambahkan 10% toleransi agar mobil yang sedikit di atas budget tetap masuk pertimbangan
+        search_max = (max_price * 1.1) if max_price > 0 else None
         
-        if parsed.get("intent") == "search_car":
-            brand = parsed.get("brand")
-            max_price = parsed.get("max_price")
-            
-            cars, _ = await car_service.get_all_cars(
-                page=1, limit=5, brand=brand, max_price=max_price, status="Tersedia"
-            )
-            
-            recommendations = []
-            for c in cars:
+        cars, _ = await car_service.get_all_cars(page=1, limit=10, max_price=search_max)
+        
+        recommendations = []
+        cars_context_lines = []
+        for c in cars:
+            if c.status == "Tersedia":
                 recommendations.append({
                     "id": str(c.id),
                     "brand": c.brand,
                     "type": c.type,
-                    "price": c.price
+                    "price": c.price,
+                    "status": c.status
                 })
             
-            if recommendations:
-                reply = f"Saya menemukan beberapa mobil {brand or ''} yang mungkin Anda suka."
-            else:
-                reply = "Maaf, saya tidak menemukan mobil yang sesuai dengan kriteria Anda saat ini. Silakan hubungi admin."
-                
-            return {
-                "reply": reply,
-                "car_recommendations": recommendations
-            }
+            cars_context_lines.append(f"- {c.brand} ({c.type}): Rp {c.price:,.0f} (Status: {c.status})")
             
+        if not cars:
+            cars_context = "Tidak ada mobil di database yang mendekati budget ini."
         else:
-            # General chat
-            prompt_chat = f"You are a helpful car showroom assistant. Answer this in Indonesian: {message}"
-            try:
-                async with httpx.AsyncClient() as client:
-                    res = await client.post(OLLAMA_URL, json={
-                        "model": MODEL_NAME,
-                        "prompt": prompt_chat,
-                        "stream": False
-                    }, timeout=30.0)
-                    reply = res.json().get("response", "Maaf, saya sedang tidak bisa merespon.")
-            except Exception:
-                reply = "Maaf, koneksi ke AI sedang terganggu."
-                
-            return {
-                "reply": reply,
-                "car_recommendations": []
-            }
+            cars_context = "\n".join(cars_context_lines)
+            
+        # Step 2: Generate friendly response
+        response_prompt = f"""
+        Kamu adalah asisten showroom mobil yang ramah. Jawablah dalam bahasa Indonesia.
+        
+        Pesan pengguna: "{message}"
+        Budget terdeteksi: Rp {max_price:,.0f}
+        
+        Daftar mobil yang SESUAI budget dari database kami:
+        {cars_context}
+        
+        Instruksi:
+        1. Berikan rekomendasi HANYA dari daftar mobil di atas. Jangan merekomendasikan mobil lain.
+        2. Jika ada mobil dengan status 'Terjual', beritahu dengan sopan bahwa mobil tersebut masuk budget tapi sayangnya sudah laku.
+        3. Jika daftar mobil kosong, minta maaf dan katakan belum ada mobil yang cocok dengan budget tersebut.
+        4. Jawablah dengan singkat, ramah, dan profesional.
+        """
+        
+        try:
+            async with httpx.AsyncClient() as client:
+                res = await client.post(OLLAMA_URL, json={
+                    "model": MODEL_NAME,
+                    "prompt": response_prompt,
+                    "stream": False
+                }, timeout=45.0)
+                reply = res.json().get("response", "Maaf, saya gagal merangkai jawaban.")
+        except Exception:
+            reply = "Maaf, ada gangguan koneksi ke server AI."
+
+        return {
+            "reply": reply,
+            "car_recommendations": recommendations
+        }
 
 ai_chat_service = AIChatService()
