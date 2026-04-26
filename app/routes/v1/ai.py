@@ -16,6 +16,7 @@ class ChatRequest(BaseModel):
 class ChatData(BaseModel):
     reply: str
     car_recommendations: List[Any]
+    action: Any = None
 
 @router.post("/chat", response_model=ResponseModel[ChatData])
 async def chat(request: ChatRequest):
