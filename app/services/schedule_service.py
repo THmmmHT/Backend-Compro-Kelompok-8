@@ -4,7 +4,7 @@ from app.schemas.schedule import ScheduleCreate, ScheduleStatusUpdate
 from app.models.user import User
 from fastapi import HTTPException
 from beanie import PydanticObjectId
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta, time
 
 class ScheduleService:
     async def create_schedule(self, user: User, schedule_in: ScheduleCreate):
@@ -13,11 +13,20 @@ class ScheduleService:
         if pending_count >= 2:
             raise HTTPException(status_code=400, detail="Maximum 2 pending appointments allowed")
 
+        # Combine date and time
+        try:
+            # Expected time format "HH:MM"
+            h, m = map(int, schedule_in.time.split(":"))
+            scheduled_dt = datetime.combine(schedule_in.schedule_date, time(h, m)).replace(tzinfo=timezone.utc)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid time format. Use HH:MM")
+
         # Business rule: date must be at least today + 1
         now = datetime.now(timezone.utc)
-        min_date = now + timedelta(days=1)
-        if schedule_in.date.replace(tzinfo=timezone.utc) < min_date:
-            raise HTTPException(status_code=400, detail="Appointment date must be at least 24 hours from now")
+        tomorrow_start = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        
+        if scheduled_dt < tomorrow_start:
+            raise HTTPException(status_code=400, detail="Appointment date must be at least H+1 (tomorrow or later)")
 
         # Verify car exists
         car = await car_service.get_car(schedule_in.car_id)
@@ -25,7 +34,9 @@ class ScheduleService:
         data = {
             "user_id": user.id,
             "car_id": car.id,
-            "date": schedule_in.date,
+            "date": scheduled_dt,
+            "phone": schedule_in.phone,
+            "notes": schedule_in.notes,
             "status": "pending"
         }
         return await schedule_repo.create(data)
@@ -43,11 +54,10 @@ class ScheduleService:
         return schedules, total
 
     async def get_schedule(self, schedule_id: str):
-        try:
-            schedule = await schedule_repo.get(PydanticObjectId(schedule_id))
-        except Exception:
+        if not PydanticObjectId.is_valid(schedule_id):
             raise HTTPException(status_code=400, detail="Invalid ID format")
             
+        schedule = await schedule_repo.get(PydanticObjectId(schedule_id))
         if not schedule:
             raise HTTPException(status_code=404, detail="Schedule not found")
         return schedule
@@ -57,11 +67,12 @@ class ScheduleService:
         if schedule.user_id != user.id:
             raise HTTPException(status_code=403, detail="Not authorized")
         if schedule.status != "pending":
-            raise HTTPException(status_code=400, detail="Only pending schedules can be cancelled")
+            raise HTTPException(status_code=400, detail="Only pending schedules can be cancelled by customer")
             
         schedule.status = "cancelled"
         await schedule.save()
         return schedule
+
 
     async def update_status(self, schedule_id: str, status_update: ScheduleStatusUpdate):
         schedule = await self.get_schedule(schedule_id)
@@ -73,10 +84,8 @@ class ScheduleService:
         await schedule.save()
         return schedule
 
-    async def delete_schedule(self, user: User, schedule_id: str):
+    async def delete_schedule(self, schedule_id: str):
         schedule = await self.get_schedule(schedule_id)
-        if schedule.user_id != user.id:
-            raise HTTPException(status_code=403, detail="Not authorized")
         await schedule_repo.delete(schedule.id)
         return True
 

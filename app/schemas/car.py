@@ -1,5 +1,5 @@
-from pydantic import BaseModel, Field
-from typing import List, Optional
+from pydantic import BaseModel, Field, ConfigDict, field_validator
+from typing import List, Optional, Any
 from datetime import datetime
 
 class CarCreate(BaseModel):
@@ -33,7 +33,9 @@ class CarStatusUpdate(BaseModel):
     status: str
 
 class CarResponse(BaseModel):
-    id: str
+    model_config = ConfigDict(from_attributes=True)
+
+    id: Any
     brand: str
     type: str
     year: int
@@ -48,3 +50,8 @@ class CarResponse(BaseModel):
     images: List[str]
     created_at: datetime
     updated_at: datetime
+
+    @field_validator("id", mode="before")
+    @classmethod
+    def serialize_id(cls, v: Any) -> str:
+        return str(v)

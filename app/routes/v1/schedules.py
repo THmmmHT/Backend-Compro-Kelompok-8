@@ -26,6 +26,7 @@ async def get_my_schedules(
 @router.get("/{schedule_id}", response_model=ResponseModel[ScheduleDetailResponse])
 async def get_schedule(schedule_id: str = Path(...), current_user: User = Depends(get_current_customer)):
     schedule = await schedule_service.get_schedule(schedule_id)
+    
     # Check if belongs to user
     if schedule.user_id != current_user.id and current_user.role != "admin":
         from fastapi import HTTPException
@@ -34,20 +35,19 @@ async def get_schedule(schedule_id: str = Path(...), current_user: User = Depend
     from app.services.car_service import car_service
     car = await car_service.get_car(str(schedule.car_id))
     
-    data = schedule.model_dump()
-    data["id"] = str(schedule.id)
-    data["user_id"] = str(schedule.user_id)
-    data["car_id"] = str(schedule.car_id)
-    data["car"] = car
+    # We combine schedule data and car data into a dictionary for the response model
+    schedule_data = schedule.model_dump()
+    schedule_data["id"] = str(schedule.id)
+    schedule_data["user_id"] = str(schedule.user_id)
+    schedule_data["car_id"] = str(schedule.car_id)
+    schedule_data["car"] = car
     
-    return ResponseModel(data=data, message="Schedule retrieved successfully")
+    return ResponseModel(data=ScheduleDetailResponse(**schedule_data), message="Schedule retrieved successfully")
 
-@router.delete("/{schedule_id}", response_model=ResponseModel[str])
-async def delete_schedule(schedule_id: str = Path(...), current_user: User = Depends(get_current_customer)):
-    await schedule_service.delete_schedule(current_user, schedule_id)
-    return ResponseModel(data=None, message="Schedule deleted successfully")
 
 @router.patch("/{schedule_id}/cancel", response_model=ResponseModel[ScheduleResponse])
 async def cancel_schedule(schedule_id: str = Path(...), current_user: User = Depends(get_current_customer)):
     schedule = await schedule_service.cancel_schedule(current_user, schedule_id)
     return ResponseModel(data=schedule, message="Schedule cancelled successfully")
+
+

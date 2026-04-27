@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from typing import Any
 from app.schemas.user import UserCreate, UserLogin, UserResponse, TokenResponse
 from app.schemas.common import ResponseModel
 from app.services.auth_service import auth_service
@@ -18,11 +19,10 @@ async def login(login_data: UserLogin):
     return ResponseModel(data=token, message="Login successful")
 
 
-@router.post("/logout", response_model=ResponseModel[str])
+@router.post("/logout", response_model=ResponseModel[Any])
 async def logout():
-    # Stateless JWT logout usually handled client-side by deleting token.
-    # A blacklist approach can be added here if needed.
-    return ResponseModel(data=None, message="Logout successful")
+    """Logout user (handled client-side by deleting token)."""
+    return ResponseModel(message="Logout successful")
 
 @router.get("/me", response_model=ResponseModel[UserResponse])
 async def get_me(current_user: User = Depends(get_current_user)):

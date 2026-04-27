@@ -22,14 +22,28 @@ async def get_schedule_detail(schedule_id: str = Path(...)):
     from app.services.car_service import car_service
     car = await car_service.get_car(str(schedule.car_id))
     
-    data = schedule.model_dump()
-    data["id"] = str(schedule.id)
-    data["user_id"] = str(schedule.user_id)
-    data["car_id"] = str(schedule.car_id)
-    data["car"] = car
-    return ResponseModel(data=data, message="Schedule detail retrieved")
+    schedule_data = schedule.model_dump()
+    schedule_data["id"] = str(schedule.id)
+    schedule_data["user_id"] = str(schedule.user_id)
+    schedule_data["car_id"] = str(schedule.car_id)
+    schedule_data["car"] = car
+    
+    return ResponseModel(data=ScheduleDetailResponse(**schedule_data), message="Schedule detail retrieved")
 
 @router.patch("/{schedule_id}/status", response_model=ResponseModel[ScheduleResponse])
 async def update_schedule_status(schedule_id: str, status_update: ScheduleStatusUpdate):
     schedule = await schedule_service.update_status(schedule_id, status_update)
     return ResponseModel(data=schedule, message="Schedule status updated")
+
+@router.patch("/{schedule_id}/reject", response_model=ResponseModel[ScheduleResponse])
+async def reject_schedule(schedule_id: str = Path(...)):
+    """Convenience endpoint for admin to reject an appointment."""
+    status_update = ScheduleStatusUpdate(status="cancelled")
+    schedule = await schedule_service.update_status(schedule_id, status_update)
+    return ResponseModel(data=schedule, message="Appointment rejected successfully")
+
+@router.delete("/{schedule_id}", response_model=ResponseModel[str])
+async def delete_schedule(schedule_id: str = Path(...)):
+    """Admin endpoint to permanently delete an appointment."""
+    await schedule_service.delete_schedule(schedule_id)
+    return ResponseModel(data=None, message="Schedule deleted successfully by Admin")
