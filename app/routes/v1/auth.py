@@ -17,11 +17,6 @@ async def login(login_data: UserLogin):
     token = await auth_service.login(login_data)
     return ResponseModel(data=token, message="Login successful")
 
-@router.post("/refresh", response_model=ResponseModel[TokenResponse])
-async def refresh_token():
-    # In a real app, you would validate the refresh token from a cookie or header.
-    # For now, it's just a placeholder to show the endpoint exists.
-    raise HTTPException(status_code=501, detail="Not implemented")
 
 @router.post("/logout", response_model=ResponseModel[str])
 async def logout():

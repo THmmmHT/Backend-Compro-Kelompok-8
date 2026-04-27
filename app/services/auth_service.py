@@ -1,6 +1,6 @@
 from app.schemas.user import UserCreate, UserLogin, TokenResponse
 from app.repositories.user_repo import user_repo
-from app.core.security import get_password_hash, verify_password, create_access_token, create_refresh_token
+from app.core.security import get_password_hash, verify_password, create_access_token
 from fastapi import HTTPException, status
 from typing import Dict, Any
 
@@ -40,8 +40,7 @@ class AuthService:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect username or password")
             
         access_token = create_access_token(data={"sub": user.username})
-        refresh_token = create_refresh_token(data={"sub": user.username})
         
-        return TokenResponse(access_token=access_token, refresh_token=refresh_token, role=user.role)
+        return TokenResponse(access_token=access_token, role=user.role)
 
 auth_service = AuthService()
