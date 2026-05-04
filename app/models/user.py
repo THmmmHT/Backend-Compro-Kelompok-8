@@ -6,6 +6,7 @@ from typing import Optional
 class User(Document):
     username: Indexed(str, unique=True)
     email: Indexed(EmailStr, unique=True)
+    phone: str = ""
     hashed_password: str
     role: str = "customer" # "customer", "admin", "internal_ai_service"
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

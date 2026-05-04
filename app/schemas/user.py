@@ -1,10 +1,11 @@
-from pydantic import BaseModel, EmailStr, ConfigDict, field_validator
+from pydantic import BaseModel, EmailStr, ConfigDict, field_validator, Field
 from datetime import datetime
 from typing import Optional, Any
 
 class UserCreate(BaseModel):
     username: str
     email: EmailStr
+    phone: str = Field(pattern=r'^[0-9]+$', description="Phone number must contain only digits", examples=["081234567890"])
     password: str
     password_confirm: str
 
@@ -18,6 +19,7 @@ class UserResponse(BaseModel):
     id: Any
     username: str
     email: EmailStr
+    phone: str
     role: str
     created_at: datetime
     updated_at: datetime

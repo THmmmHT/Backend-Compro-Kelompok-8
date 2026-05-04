@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator, Field
 from typing import Optional, Any
 from datetime import datetime, date, time
 from app.schemas.car import CarResponse
@@ -7,7 +7,7 @@ class ScheduleCreate(BaseModel):
     car_id: str
     schedule_date: date # YYYY-MM-DD
     time: str # HH:MM
-    phone: str
+    phone: str = Field(pattern=r'^[0-9]+$', description="Phone number must contain only digits", examples=["081234567890"])
     notes: Optional[str] = None
 
 class ScheduleStatusUpdate(BaseModel):

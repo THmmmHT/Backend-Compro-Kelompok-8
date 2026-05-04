@@ -26,6 +26,7 @@ async def seed():
     admin = User(
         username="admin",
         email="admin@showroom.com",
+        phone="081234567890",
         hashed_password=get_password_hash("admin123"),
         role="admin"
     )
@@ -34,6 +35,7 @@ async def seed():
     user = User(
         username="johndoe",
         email="john@example.com",
+        phone="089876543210",
         hashed_password=get_password_hash("password123"),
         role="customer"
     )
